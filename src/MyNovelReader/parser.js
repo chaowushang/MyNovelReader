@@ -846,6 +846,31 @@ handleContentText2(node, info) {
             deDupeLines.push(line);
         }
         content = deDupeLines.join('\n');
+    // 移除章节标题干扰（如果正文中开头重复出现了标题）
+        if (this.originChapterTitle) {
+            try {
+                // 对章节标题进行正则转义处理
+                const titlePart = toReStr(this.originChapterTitle.trim()).replace(/\s+/g, '\\s*');
+                let combinedRegStr = "";
+
+                // 健壮性检查：只有书名存在且不为空时，才构建复合正则
+                if (this.bookTitle && this.bookTitle.trim()) {
+                    const bookPart = toReStr(this.bookTitle.trim());
+                    // 匹配 [书名](多次) + [标题](多次) 的结构
+                    combinedRegStr = `(?:${bookPart}\\s*)*\\s*(?:${titlePart})*`;
+                } else {
+                    // 如果没有书名，则只匹配标题
+                    combinedRegStr = titlePart;
+                }
+
+                if (combinedRegStr) {
+                    // 使用 'im' 参数：i-忽略大小写，m-多行模式（匹配每一行的开头）
+                content = content.replace(toRE(`^\\s*${combinedRegStr}\\s*$`, 'igm'), '');
+                }
+            } catch (e) { 
+                C.error('章节标题移除正则构建失败', e); 
+            }
+        }
 
         var contentHandle = (typeof(info.contentHandle) == 'undefined') ? true : info.contentHandle;
         if (contentHandle) content = this.replaceText(content, Rule.replace);
@@ -1274,4 +1299,5 @@ handleContentText2(node, info) {
 };
 
 export default Parser
+
 
