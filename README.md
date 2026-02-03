@@ -4,7 +4,8 @@
 [![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 本项目基于 [ywzhaiqi/MyNovelReader](https://github.com/ywzhaiqi/MyNovelReader) 进行二次开发与深度优化。
-在[821938089/MyNovelReader8.0.5](https://github.com/821938089/MyNovelReader8.0.5)r) 的基础上进行修改
+
+在[821938089/MyNovelReader8.0.5](https://github.com/821938089/MyNovelReader8.0.5) 的基础上进行修改
 
 ## 🚀 核心优化
 
@@ -61,6 +62,7 @@
 [siteExampleTs]: /src/MyNovelReader/rule/siteExample.ts
 [ignore-x-frame-options-chrome]: https://chromewebstore.google.com/detail/ignore-x-frame-headers/ohgdnhkppgeemnmjebhedjneajcedppf
 [ignore-x-frame-options-firefox]: https://addons.mozilla.org/firefox/addon/ignore-x-frame-options-header/
+
 
 
 
