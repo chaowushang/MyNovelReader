@@ -4791,99 +4791,66 @@
       },
 handleContentText2(node, info) {
           if(!node) return null;
-          // 如果站点规则声明使用原始内容，直接返回
           if (info.useRawContent) return node.outerHTML;
 
-          C.group('内容提取优化');
+          C.group('内容提取修正版');
           C.time('Timer');
 
-          // 克隆节点以防破坏原网页逻辑
           var $div = $(node.cloneNode(true));
-
-          // 【优化点：预过滤】物理移除隐藏的干扰元素、脚本、样式和广告标签
-          // 很多现代广告通过 display:none 隐藏，textContent 依然能抓到，这里必须 remove
-          $div.find('script, style, ins, link, :hidden, [aria-hidden="true"]').remove();
-
-          // 移除正文可能残留的标题标签
+          
+          // 【修正 1】移除 :hidden。很多站点的文字层会被误判，所以只移除明确的干扰标签
+          $div.find('script, style, ins, link, [aria-hidden="true"]').remove();
+          // 移除可能干扰的标题
           $div.find('h1, h2, h3').remove();
 
-          // 应用站点特定的移除规则
-          if(info.contentRemove){
-              $div.find(info.contentRemove).remove();
-          }
+          if(info.contentRemove) $div.find(info.contentRemove).remove();
 
-          // 将 DOM 转换为带格式的纯文本
+          // 获取清洗后的文本
           let content = cleanHTML($div[0]);
 
-          // 【核心优化：高效去重算法】
-          // 预处理行：去除首尾空格并过滤空行
-          const rawLines = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+          // 【安全回退】如果 cleanHTML 提取后的内容太短（可能提取失败），则回退到 text() 
+          if (!content || content.length < 50) {
+              content = $div.text();
+          }
+
+          // 【修正 2】优化去重算法，确保不会漏掉短句子
+          const rawLines = content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
           const seen = new Set();
           const deDupeLines = [];
-          let dupeCount = 0;
-
+          
           for (const line of rawLines) {
-              // 仅对长度大于 10 的段落进行查重，避免误删“是的。”、“好。”等短对话
-              if (line.length > 10) {
-                  if (seen.has(line)) {
-                      dupeCount++;
-                      continue;
-                  }
+              // 只有长段落才参与查重（通常广告或重复版权声明都很长）
+              // 阈值设为 20，短于 20 个字的句子（对话、短句）绝对不查重，直接通过
+              if (line.length > 20) {
+                  if (seen.has(line)) continue;
                   seen.add(line);
               }
-              deDupeLines.push(line);
+              deDupeLines.push(line); // 这一行必须在 if 之外，确保短句正常进入数组
           }
-          
-          if (dupeCount > 0) C.log(`检测到并去除了 ${dupeCount} 段重复内容`);
           content = deDupeLines.join('\n');
 
-          // 确定是否需要进行标准清洗处理
+          // 后续标准处理逻辑
           var contentHandle = (typeof(info.contentHandle) == 'undefined') ? true : info.contentHandle;
-
-          // 移除章节标题干扰（如果正文中重复出现了标题）
-          if (this.originChapterTitle) {
-              try {
-                  var titleRegStr = toReStr(this.originChapterTitle.trim()).replace(/\s+/g, '\\s*');
-                  var bookTitleStr = toReStr(this.bookTitle.trim());
-                  var combinedReg = "(" + bookTitleStr + "\\s*)*" + "\\s*" + "(" + titleRegStr + ")*";
-                  content = content.replace(toRE(`^${combinedReg}$`, 'im'), '');
-              } catch (e) { C.error('正则移除标题失败', e); }
-          }
-
-          // 基础拼音修复和字词替换
           if (contentHandle) {
               content = this.replaceText(content, Rule.replace);
           }
-
-          // 移除含有当前域名的行（防盗版站广告）
+          
           if (Setting.removeDomainLine) {
               const hostRe = toRE(`^.*?${this._curPageHost}.*?$`, 'gm');
               content = content.replace(hostRe, '');
           }
 
-          // 站点特定替换
           if (info.contentReplace) content = this.replaceText(content, info.contentReplace);
-          
-          // 全局广告替换规则
           content = this.replaceText(content, Rule.replaceAll);
-          
-          // 繁简转换（调用优化后的正则版本）
           content = chineseConversion(content);
 
-          // 自定义替换规则（用户在设置面板输入的规则）
-          try {
-              content = this.contentCustomReplace(content);
-          } catch(ex) { C.error('自定义替换错误', ex); }
-
-          // 内容标准化（全角转半角、标点修正）
           if (Setting.contentNormalize) {
               content = toDBC(toCDB(content));
               content = this.replaceText(content, getNormalizeMap());
           }
 
-          // 最后渲染为带 <p> 标签的 HTML
+          // 最后渲染为 HTML
           const contentHTML = renderHTML(content);
-          
           C.timeEnd('Timer');
           C.groupEnd();
 
@@ -7938,5 +7905,6 @@ registerControls: function() {
   }
 
 }(Vue));
+
 
 
