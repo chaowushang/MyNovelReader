@@ -7356,11 +7356,47 @@ function cleanupEvents(iframe) {
           App$1.menuItems = App$1.$chapterList.find("div");
           App$1.scrollItems = $("article[id^=page-]");
       },
-      registerControls: function() {
-          // 内容滚动
-          var throttled = _.throttle(App$1.scroll, 200);
-          $(window).scroll(throttled);
+registerControls: function() {
+          // 【优化点：翻页锁】防止同时发出多个下一页请求
+          let isRequesting = false;
 
+          // 【优化点：独立的翻页检查逻辑】
+          const checkScroll = async () => {
+              // 如果已暂停、正在请求中、或已到最后一页，则跳过
+              if (App$1.paused || isRequesting || App$1.isTheEnd) return;
+
+              const scrollHeight = document.documentElement.scrollHeight;
+              const clientHeight = document.documentElement.clientHeight;
+              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+              // 【核心优化：动态预载】
+              // 预载时机：剩余高度 < remain_height * 1.5。
+              // 设定 1.5 倍是为了在用户滚到到底部前，内容就已经加载并渲染好，实现无缝阅读。
+              if (scrollHeight - scrollTop - clientHeight < Setting.remain_height * 1.5) {
+                  isRequesting = true;
+                  C.log('状态锁：开始请求下一页');
+                  
+                  try {
+                      // 执行原有的请求逻辑
+                      await App$1.scrollForce();
+                  } catch (e) {
+                      C.error('自动翻页异常', e);
+                  } finally {
+                      // 确保请求结束后（无论成功失败）延迟 200ms 再解锁，防止由于 DOM 渲染延迟导致的重复触发
+                      setTimeout(() => { isRequesting = false; }, 200);
+                  }
+              }
+          };
+
+          // 将滚动监听合并：同时处理“翻页检查”和“章节标题高亮更新”
+          var throttled = _.throttle(() => {
+              checkScroll(); // 检查是否需要加载下一页
+              App$1.updateCurFocusElement(); // 更新左侧菜单的当前章节激活状态
+          }, 150); // 频率调至 150ms，比原版更灵敏
+
+          $(window).on('scroll', throttled);
+
+          // --- 以下按键注册保持不变 ---
           App$1.registerKeys();
 
           if (Setting.dblclickPause) {
@@ -7902,4 +7938,5 @@ function cleanupEvents(iframe) {
   }
 
 }(Vue));
+
 
