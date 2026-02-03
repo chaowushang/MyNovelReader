@@ -814,124 +814,59 @@ Parser.prototype = {
         }
 
     },
-    handleContentText2(node, info) {
+handleContentText2(node, info) {
         if(!node) return null;
+        if (info.useRawContent) return node.outerHTML;
 
-        if (info.useRawContent) {
-            C.log('内容处理已被自定义站点规则 useRawContent 关闭')
-            return node.outerHTML
+        C.group('内容提取优化');
+        var $div = $(node.cloneNode(true));
+        
+        // 移除干扰标签，但不使用冒进的 :hidden
+        $div.find('script, style, ins, link, [aria-hidden="true"]').remove();
+        $div.find('h1, h2, h3').remove();
+        if(info.contentRemove) $div.find(info.contentRemove).remove();
+
+        let content = cleanHTML($div[0]);
+
+        // 【安全回退】字数太少说明 cleanHTML 解析异常
+        if (!content || content.length < 50) {
+            content = $div.text();
         }
 
-        C.group('开始内容处理');
-        C.time('内容处理');
-
-        var $div = $(node.cloneNode(true))
-
-        // 尝试删除正文中的章节标题
-        $div.find('h1, h2, h3').remove()
-
-        // contentRemove
-        $div.find(Rule.contentRemove).remove();
-        if(info.contentRemove){
-            $div.find(info.contentRemove).remove();
+        // 【高效查重】使用 Set
+        const rawLines = content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        const seen = new Set();
+        const deDupeLines = [];
+        
+        for (const line of rawLines) {
+            if (line.length > 20) { // 仅长句子查重
+                if (seen.has(line)) continue;
+                seen.add(line);
+            }
+            deDupeLines.push(line);
         }
-
-        let content = cleanHTML($div[0])
-
-        C.groupCollapsed('文本内容')
-        C.log(content)
-        C.groupEnd()
-
-        // 去重
-        const contents = content.split('\n')
-        const deDupeConetents = [...new Set(contents)]
-
-        // 查重率超过 10% 则使用去重后内容
-        const dupeRate = (contents.length - deDupeConetents.length) / contents.length
-        if (dupeRate > 0.1) {
-            content = deDupeConetents.join('\n')
-            C.log(`去除了 ${contents.length - deDupeConetents.length} 段重复内容`)
-        }
+        content = deDupeLines.join('\n');
 
         var contentHandle = (typeof(info.contentHandle) == 'undefined') ? true : info.contentHandle;
-
-        C.log(`本章字数：${content.length}`)
-
-        // 去除内容中的标题
-        if (this.originChapterTitle) {
-            try {
-                var reg = toReStr(this.originChapterTitle.trim()).replace(/\s+/g, '\\s*')
-                reg = "(" + this.bookTitle.trim() + "\\s*)*" + "\\s*" + "(" + reg + ")*"
-                content = content.replace(toRE(`^${reg}$`), '')
-                C.log('去除内容中的标题', reg)
-            } catch (e) {
-                C.error(e)
-            }
-        }
-
-        // C.groupCollapsed('文本内容 - replace')
-        // C.log(content)
-        // C.groupEnd()
-
-        // 拼音字、屏蔽字修复
-        if (contentHandle) {
-            content = this.replaceText(content, Rule.replace)
-        }
-
-        // 删除含网站域名行文本
-        if (Setting.removeDomainLine) {
-            const removeText = []
-            const hostRe = toRE(`^.*?${this._curPageHost}.*?$`)
-            content = content.replace(hostRe, match => {
-                removeText.push(match)
-                return ''
-            })  
-            C.log(`删除含网站域名行`, hostRe, removeText)
-        }
-
-        // C.groupCollapsed('文本内容 - contentReplace')
-        // C.log(content)
-        // C.groupEnd()
-
-        // 规则替换
-        if (info.contentReplace) {
-            content = this.replaceText(content, info.contentReplace)
-        }
-
-        // C.groupCollapsed('文本内容 - replaceAll')
-        // C.log(content)
-        // C.groupEnd()
-
-        // 广告过滤
-        content = this.replaceText(content, Rule.replaceAll)
-
-        // C.groupCollapsed('文本内容 - end')
-        // C.log(content)
-        // C.groupEnd()
+        if (contentHandle) content = this.replaceText(content, Rule.replace);
         
-        // 繁简转换
-        content = chineseConversion(content)
-
-        // 自定义替换
-        try {
-            content = this.contentCustomReplace(content);
-        } catch(ex) {
-            C.error('自定义替换错误', ex);
+        if (Setting.removeDomainLine) {
+            const hostRe = toRE(`^.*?${this._curPageHost}.*?$`, 'gm');
+            content = content.replace(hostRe, '');
         }
 
-        // 内容标准化处理
+        if (info.contentReplace) content = this.replaceText(content, info.contentReplace);
+        content = this.replaceText(content, Rule.replaceAll);
+        content = chineseConversion(content);
+
         if (Setting.contentNormalize) {
-            content = toDBC(toCDB(content))
-            content = this.replaceText(content, getNormalizeMap())
+            content = toDBC(toCDB(content));
+            content = this.replaceText(content, getNormalizeMap());
         }
 
-        const contentHTML = renderHTML(content)
-
-        C.timeEnd('内容处理');
+        const contentHTML = renderHTML(content);
         C.groupEnd();
-
-        return contentHTML
-
+        return contentHTML;
     },
     normalizeContent: function(html) {
         html = html.replace(/<\/p><p>/g, '</p>\n<p>')
@@ -1339,3 +1274,4 @@ Parser.prototype = {
 };
 
 export default Parser
+
