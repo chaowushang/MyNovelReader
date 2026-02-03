@@ -3,7 +3,7 @@
 // @name           My Novel Reader
 // @name:zh-CN     小说阅读脚本
 // @name:zh-TW     小說閱讀腳本
-// @version        8.0.5
+// @version        8.0.6
 // @namespace      https://github.com/ywzhaiqi
 // @author         ywzhaiqi
 // @contributor    Roger Au, shyangs, JixunMoe、akiba9527 及其他网友
@@ -6573,20 +6573,24 @@
   });
   MutationObserver$1.prototype.observe = observeProxy;
 
-  function cleanupEvents(iframe) {
+function cleanupEvents(iframe) {
     let func;
     const length = clenaupEventArray.length;
-    while ((func = clenaupEventArray.pop())) func();
-    C.log(`${iframe ? '[iframe] ' : ''}已移除 ${length} 个事件监听器和观察器`);
+    while ((func = clenaupEventArray.pop())) {
+      try { func(); } catch (e) {}
+    }
+    C.log(`${iframe ? '[iframe] ' : ''}优化清理：已移除 ${length} 个事件监听器`);
 
-    var highestTimeoutId = setTimeout$1(';');
-    for (var i = 0; i < highestTimeoutId; i++) {
-      clearTimeout$1(i);
+    if (iframe && App$1.iframeRequest && App$1.iframeRequest.iframe) {
+      // 快速回收内存
+      App$1.iframeRequest.iframe.src = 'about:blank';
     }
 
     try {
-      unsafeWindow.$(unsafeWindow).off();
-      unsafeWindow.$(document).off();
+      if (unsafeWindow.jQuery) {
+        $(unsafeWindow).off('.MyNovelReader');
+        $(document).off('.MyNovelReader');
+      }
     } catch (e) {}
   }
 
@@ -7913,6 +7917,7 @@
     BookLinkMe.init();
   } else {
     App$1.init();
+
   }
 
 }(Vue));
