@@ -4789,124 +4789,105 @@
           }
 
       },
-      handleContentText2(node, info) {
+handleContentText2(node, info) {
           if(!node) return null;
+          // 如果站点规则声明使用原始内容，直接返回
+          if (info.useRawContent) return node.outerHTML;
 
-          if (info.useRawContent) {
-              C.log('内容处理已被自定义站点规则 useRawContent 关闭');
-              return node.outerHTML
-          }
+          C.group('内容提取优化');
+          C.time('Timer');
 
-          C.group('开始内容处理');
-          C.time('内容处理');
-
+          // 克隆节点以防破坏原网页逻辑
           var $div = $(node.cloneNode(true));
 
-          // 尝试删除正文中的章节标题
+          // 【优化点：预过滤】物理移除隐藏的干扰元素、脚本、样式和广告标签
+          // 很多现代广告通过 display:none 隐藏，textContent 依然能抓到，这里必须 remove
+          $div.find('script, style, ins, link, :hidden, [aria-hidden="true"]').remove();
+
+          // 移除正文可能残留的标题标签
           $div.find('h1, h2, h3').remove();
 
-          // contentRemove
-          $div.find(Rule.contentRemove).remove();
+          // 应用站点特定的移除规则
           if(info.contentRemove){
               $div.find(info.contentRemove).remove();
           }
 
+          // 将 DOM 转换为带格式的纯文本
           let content = cleanHTML($div[0]);
 
-          C.groupCollapsed('文本内容');
-          C.log(content);
-          C.groupEnd();
+          // 【核心优化：高效去重算法】
+          // 预处理行：去除首尾空格并过滤空行
+          const rawLines = content.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+          const seen = new Set();
+          const deDupeLines = [];
+          let dupeCount = 0;
 
-          // 去重
-          const contents = content.split('\n');
-          const deDupeConetents = [...new Set(contents)];
-
-          // 查重率超过 10% 则使用去重后内容
-          const dupeRate = (contents.length - deDupeConetents.length) / contents.length;
-          if (dupeRate > 0.1) {
-              content = deDupeConetents.join('\n');
-              C.log(`去除了 ${contents.length - deDupeConetents.length} 段重复内容`);
+          for (const line of rawLines) {
+              // 仅对长度大于 10 的段落进行查重，避免误删“是的。”、“好。”等短对话
+              if (line.length > 10) {
+                  if (seen.has(line)) {
+                      dupeCount++;
+                      continue;
+                  }
+                  seen.add(line);
+              }
+              deDupeLines.push(line);
           }
+          
+          if (dupeCount > 0) C.log(`检测到并去除了 ${dupeCount} 段重复内容`);
+          content = deDupeLines.join('\n');
 
+          // 确定是否需要进行标准清洗处理
           var contentHandle = (typeof(info.contentHandle) == 'undefined') ? true : info.contentHandle;
 
-          C.log(`本章字数：${content.length}`);
-
-          // 去除内容中的标题
+          // 移除章节标题干扰（如果正文中重复出现了标题）
           if (this.originChapterTitle) {
               try {
-                  var reg = toReStr(this.originChapterTitle.trim()).replace(/\s+/g, '\\s*');
-                  reg = "(" + this.bookTitle.trim() + "\\s*)*" + "\\s*" + "(" + reg + ")*";
-                  content = content.replace(toRE(`^${reg}$`), '');
-                  C.log('去除内容中的标题', reg);
-              } catch (e) {
-                  C.error(e);
-              }
+                  var titleRegStr = toReStr(this.originChapterTitle.trim()).replace(/\s+/g, '\\s*');
+                  var bookTitleStr = toReStr(this.bookTitle.trim());
+                  var combinedReg = "(" + bookTitleStr + "\\s*)*" + "\\s*" + "(" + titleRegStr + ")*";
+                  content = content.replace(toRE(`^${combinedReg}$`, 'im'), '');
+              } catch (e) { C.error('正则移除标题失败', e); }
           }
 
-          // C.groupCollapsed('文本内容 - replace')
-          // C.log(content)
-          // C.groupEnd()
-
-          // 拼音字、屏蔽字修复
+          // 基础拼音修复和字词替换
           if (contentHandle) {
               content = this.replaceText(content, Rule.replace);
           }
 
-          // 删除含网站域名行文本
+          // 移除含有当前域名的行（防盗版站广告）
           if (Setting.removeDomainLine) {
-              const removeText = [];
-              const hostRe = toRE(`^.*?${this._curPageHost}.*?$`);
-              content = content.replace(hostRe, match => {
-                  removeText.push(match);
-                  return ''
-              });  
-              C.log(`删除含网站域名行`, hostRe, removeText);
+              const hostRe = toRE(`^.*?${this._curPageHost}.*?$`, 'gm');
+              content = content.replace(hostRe, '');
           }
 
-          // C.groupCollapsed('文本内容 - contentReplace')
-          // C.log(content)
-          // C.groupEnd()
-
-          // 规则替换
-          if (info.contentReplace) {
-              content = this.replaceText(content, info.contentReplace);
-          }
-
-          // C.groupCollapsed('文本内容 - replaceAll')
-          // C.log(content)
-          // C.groupEnd()
-
-          // 广告过滤
-          content = this.replaceText(content, Rule.replaceAll);
-
-          // C.groupCollapsed('文本内容 - end')
-          // C.log(content)
-          // C.groupEnd()
+          // 站点特定替换
+          if (info.contentReplace) content = this.replaceText(content, info.contentReplace);
           
-          // 繁简转换
+          // 全局广告替换规则
+          content = this.replaceText(content, Rule.replaceAll);
+          
+          // 繁简转换（调用优化后的正则版本）
           content = chineseConversion(content);
 
-          // 自定义替换
+          // 自定义替换规则（用户在设置面板输入的规则）
           try {
               content = this.contentCustomReplace(content);
-          } catch(ex) {
-              C.error('自定义替换错误', ex);
-          }
+          } catch(ex) { C.error('自定义替换错误', ex); }
 
-          // 内容标准化处理
+          // 内容标准化（全角转半角、标点修正）
           if (Setting.contentNormalize) {
               content = toDBC(toCDB(content));
               content = this.replaceText(content, getNormalizeMap());
           }
 
+          // 最后渲染为带 <p> 标签的 HTML
           const contentHTML = renderHTML(content);
-
-          C.timeEnd('内容处理');
+          
+          C.timeEnd('Timer');
           C.groupEnd();
 
-          return contentHTML
-
+          return contentHTML;
       },
       normalizeContent: function(html) {
           html = html.replace(/<\/p><p>/g, '</p>\n<p>');
@@ -7921,3 +7902,4 @@ function cleanupEvents(iframe) {
   }
 
 }(Vue));
+
