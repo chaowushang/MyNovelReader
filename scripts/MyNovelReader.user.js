@@ -59,6 +59,13 @@
 // @match          *://read.zongheng.com/chapter/*/*.html
 // @match          *://www.duread.cn/chapter/book_chapter_detail/*
 // @match          *://www.duyuedu.net/chapter/book_chapter_detail/*
+// @match          *://www.69shuba.com/txt/*/*
+// @match          *://www.69shu.com/txt/*/*
+// @match          *://www.69xinshu.com/txt/*/*
+// @match          *://www.69shu.pro/txt/*/*
+// @match          *://www.69shu.top/txt/*/*
+// @match          *://www.69shu.cx/txt/*/*
+// @match          *://www.69shu.me/txt/*/*
 // http://www.tianyabook.com/*/*.htm
 
 // @include        *://tieba.baidu.com/p/*
@@ -1161,7 +1168,23 @@
           },
       },
       {
-          siteName: "起点新版-20230517",
+         {
+        siteName: "69书吧",
+        url: "^https?://www\\.(?:69shu|69shuba|69xinshu|69yuedu)\\.(?:com|top|pro|cx|me|ac|biz|net|co)/txt/\\d+/\\d+",
+        exampleUrl: 'https://www.69shuba.com/txt/51757/33849888',
+        titleSelector: 'h1',
+        contentSelector: '.txtnav',
+        contentRemove: '.txtinfo, #txtright, .bottom-ad, .bottom-ad2, .err_tips, .hide720',
+        // 导航按钮
+        nextSelector: '.page1 a:nth-child(4)',
+        prevSelector: '.page1 a:nth-child(1)',
+        indexSelector: '.page1 a:nth-child(3)',
+        // 核心设置
+        useiframe: true,     // 69书吧建议开启 iframe 模式以保证内容加载完整
+        withReferer: true    // 必须带 Referer 才能正常请求内容
+    },
+    
+         siteName: "起点新版-20230517",
           url: "^https?://(www|m)\\.qidian\\.com/chapter/.*",
 
           //bookTitleSelector: ".bookTitle",
@@ -7912,6 +7935,7 @@ registerControls: function() {
   }
 
 }(Vue));
+
 
 
 
