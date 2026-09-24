@@ -1,11 +1,19 @@
 # My Novel Reader
 
-[![Version](https://img.shields.io/badge/version-8.1.0-green.svg)](https://github.com/chaowushang/MyNovelReader)
+[![Version](https://img.shields.io/badge/version-8.1.1-green.svg)](https://github.com/chaowushang/MyNovelReader)
 [![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 本项目基于 [ywzhaiqi/MyNovelReader](https://github.com/ywzhaiqi/MyNovelReader) 进行二次开发与深度优化。
 
 在[821938089/MyNovelReader8.0.5](https://github.com/821938089/MyNovelReader) 的基础上进行修改
+
+## 8.1.1 修复
+
+- 修复安装脚本中 69书吧与起点规则之间的大括号语法错误。
+- 修复源码引用未定义的 App$1，恢复控件注册。
+- 滚动监听加入卸载与失效保护，复用 getRemain 计算剩余高度。
+- 保留异步翻页互斥，加载期间继续更新章节焦点，异常后释放锁。
+- 使用 Node.js 运行 `node --test test/scroll-controls.test.cjs` 验证源码和安装脚本。
 
 ## 🚀 核心优化
 
